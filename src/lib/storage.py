@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 EVENTS_TABLE_NAME = os.environ.get('EVENTS_TABLE', 'zapier-triggers-events-dev')
 EVENTS_BUCKET_NAME = os.environ.get('EVENTS_BUCKET', 'zapier-triggers-events-dev')
 SIZE_THRESHOLD_BYTES = int(os.environ.get('SIZE_THRESHOLD_BYTES', '400000'))
-LEASE_DURATION_SECONDS = int(os.environ.get('LEASE_DURATION_SECONDS', '300'))  # Default 5 minutes (300 seconds)
+LEASE_DURATION_SECONDS = int(os.environ.get('LEASE_DURATION_SECONDS', '20'))  # Default 20 seconds
 EVENT_TTL_DAYS = 30
 
 # Initialize AWS clients
