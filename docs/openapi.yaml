@@ -32,10 +32,14 @@ info:
     name: Proprietary
 
 servers:
+  - url: https://s31nf6h57i.execute-api.us-east-1.amazonaws.com
+    description: Production environment (deployed)
+  - url: https://xiz2bca1sg.execute-api.us-east-1.amazonaws.com
+    description: Development environment (deployed)
   - url: https://api.zapier.com/triggers/v1
-    description: Production environment
+    description: Production environment (future)
   - url: https://api-dev.zapier.com/triggers/v1
-    description: Development environment
+    description: Development environment (future)
 
 tags:
   - name: Events
