@@ -8,7 +8,7 @@
 
 - [ ] API Base: `https://xiz2bca1sg.execute-api.us-east-1.amazonaws.com/`
 - [ ] Swagger UI: `http://triggers-api-docs-mlx.s3-website-us-east-1.amazonaws.com`
-- [ ] Two API keys ready: `ak_test1234567890123456789012345678` (Key A) + `ak_test123456789012345678901234567890` (Key B)
+- [ ] Two API keys ready: `ak_test1234567890123456789012345678` (Key A) + `ak_demo1234567890123456789012345678` (Key B)
 - [ ] Authorize with API Key A in Swagger UI before starting (click "Authorize" button at top)
 - [ ] Payloads ready: small event, large event (>400KB), event with explicit `id`
 - [ ] CloudWatch dashboard open

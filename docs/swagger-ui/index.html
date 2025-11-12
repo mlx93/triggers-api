@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔌</text></svg>">
   <title>Zapier Triggers API - Swagger UI</title>
   <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.10.3/swagger-ui.css" />
   <style>
@@ -84,6 +85,150 @@
       padding-top: 20px;
       border-top: 1px solid #e0e0e0;
     }
+    
+    /* Make actual server response more prominent */
+    .swagger-ui .responses-wrapper {
+      margin-top: 40px;
+      padding-top: 30px;
+      border-top: 3px solid #3b4151;
+    }
+    
+    /* Hide or minimize the "Details" tab (example responses) */
+    .swagger-ui .responses-inner .response-col_status {
+      background: #f7f7f7;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+    }
+    
+    /* Make the actual live server response stand out */
+    .swagger-ui .live-responses-table {
+      margin-top: 20px;
+      border: 3px solid #49cc90;
+      border-radius: 6px;
+      padding: 20px;
+      background: #f9fff9;
+      position: relative;
+    }
+    
+    /* Add "LIVE RESPONSE" label before live response */
+    .swagger-ui .live-responses-table::before {
+      content: "✓ LIVE RESPONSE";
+      display: block;
+      background: #49cc90;
+      color: white;
+      font-weight: 700;
+      font-size: 12px;
+      padding: 8px 15px;
+      border-radius: 4px 4px 0 0;
+      margin: -20px -20px 15px -20px;
+      letter-spacing: 1px;
+    }
+    
+    /* Make response code more prominent in live response */
+    .swagger-ui .live-responses-table .response-col_status {
+      font-size: 20px !important;
+      font-weight: 700 !important;
+      color: #2e7d32 !important;
+      background: #e8f5e9;
+      padding: 15px;
+      border-radius: 4px;
+      border-left: 4px solid #49cc90;
+      margin-bottom: 15px;
+    }
+    
+    /* Style the actual response body in live response */
+    .swagger-ui .live-responses-table .response-col_description {
+      background: #fafafa;
+      padding: 20px;
+      border-radius: 6px;
+      border: 1px solid #e0e0e0;
+      margin-top: 15px;
+      display: block !important;
+    }
+    
+    /* Make response body code block more readable */
+    .swagger-ui .live-responses-table pre {
+      background: #263238;
+      color: #aed581;
+      padding: 20px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.6;
+      margin: 0;
+    }
+    
+    /* Clear black border separator between live response and example responses */
+    .swagger-ui .live-responses-table {
+      border-bottom: 4px solid #000000;
+      margin-bottom: 30px;
+    }
+    
+    /* Show example responses but make them less prominent */
+    .swagger-ui .responses-inner .response:not(.live-response) {
+      opacity: 0.7;
+      background: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      margin-top: 20px;
+    }
+    
+    /* Add "EXAMPLE RESPONSES" label before example responses */
+    .swagger-ui .responses-inner .response:not(.live-response):first-of-type::before {
+      content: "EXAMPLE RESPONSES (from OpenAPI spec)";
+      display: block;
+      background: #666;
+      color: white;
+      font-weight: 700;
+      font-size: 12px;
+      padding: 8px 15px;
+      border-radius: 4px;
+      margin: -15px -15px 15px -15px;
+      letter-spacing: 1px;
+    }
+    
+    /* Make request URL section less prominent */
+    .swagger-ui .request-url {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      font-family: monospace;
+      font-size: 12px;
+      color: #666;
+    }
+    
+    /* Make CURL section less prominent */
+    .swagger-ui .curl {
+      background: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      font-size: 12px;
+    }
+    
+    /* Emphasize the "Responses" heading */
+    .swagger-ui .responses-inner h4 {
+      font-size: 20px !important;
+      font-weight: 700 !important;
+      color: #3b4151 !important;
+      margin-bottom: 15px !important;
+      border-bottom: 2px solid #49cc90;
+      padding-bottom: 10px;
+    }
+    
+    /* Hide response headers and links in example responses */
+    .swagger-ui .response-col_headers,
+    .swagger-ui .response-col_links {
+      display: none;
+    }
+    
+    /* Show headers and links only in live responses */
+    .swagger-ui .live-responses-table .response-col_headers,
+    .swagger-ui .live-responses-table .response-col_links {
+      display: table-cell;
+    }
   </style>
 </head>
 <body>
@@ -112,62 +257,8 @@
         showCommonExtensions: true,
         tryItOutEnabled: true,  // Enable "Try it out" by default
         supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch'],
-        oauth2RedirectUrl: window.location.origin + "/docs/swagger-ui/oauth2-redirect.html",
-        
-        // Request interceptor to add custom styling and behavior
-        requestInterceptor: (req) => {
-          // Show all operations as locked initially if no API key
-          return req;
-        },
-        
-        // On complete - customize UI after load
-        onComplete: () => {
-          // Force all operations to show as locked initially
-          updateAuthorizationStatus();
-          
-          // Listen for authorization changes
-          const observer = new MutationObserver(() => {
-            updateAuthorizationStatus();
-          });
-          
-          // Observe the authorize button for changes
-          const authBtn = document.querySelector('.btn.authorize');
-          if (authBtn) {
-            observer.observe(authBtn, { attributes: true, childList: true, subtree: true });
-          }
-        }
+        oauth2RedirectUrl: window.location.origin + "/docs/swagger-ui/oauth2-redirect.html"
       });
-      
-      // Function to update authorization status visualization
-      function updateAuthorizationStatus() {
-        const authBtn = document.querySelector('.btn.authorize');
-        const lockIcons = document.querySelectorAll('.authorization__btn.locked, .authorization__btn.unlocked');
-        
-        // Check if API key is present in localStorage or auth state
-        const isAuthorized = ui.authSelectors && ui.authSelectors.authorized() && 
-                            Object.keys(ui.authSelectors.authorized().toJS()).length > 0;
-        
-        if (authBtn) {
-          if (isAuthorized) {
-            authBtn.classList.add('unlocked');
-            authBtn.classList.remove('locked');
-          } else {
-            authBtn.classList.remove('unlocked');
-            authBtn.classList.add('locked');
-          }
-        }
-        
-        // Update all operation lock icons
-        lockIcons.forEach(icon => {
-          if (isAuthorized) {
-            icon.classList.remove('locked');
-            icon.classList.add('unlocked');
-          } else {
-            icon.classList.add('locked');
-            icon.classList.remove('unlocked');
-          }
-        });
-      }
       
       window.ui = ui;
     };
