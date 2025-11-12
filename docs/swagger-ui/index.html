@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zapier Triggers API - Swagger UI</title>
+  <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.10.3/swagger-ui.css" />
+  <style>
+    html {
+      box-sizing: border-box;
+      overflow: -moz-scrollbars-vertical;
+      overflow-y: scroll;
+    }
+    *, *:before, *:after {
+      box-sizing: inherit;
+    }
+    body {
+      margin:0;
+      background: #fafafa;
+    }
+    .swagger-ui .topbar {
+      background-color: #ff4a00;
+    }
+    .swagger-ui .topbar .download-url-wrapper {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5.10.3/swagger-ui-bundle.js"></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5.10.3/swagger-ui-standalone-preset.js"></script>
+  <script>
+    window.onload = function() {
+      // SwaggerUIBundle configuration
+      const ui = SwaggerUIBundle({
+        url: "./openapi.yaml",  // Relative path to OpenAPI spec
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIStandalonePreset
+        ],
+        plugins: [
+          SwaggerUIBundle.plugins.DownloadUrl
+        ],
+        layout: "StandaloneLayout",
+        validatorUrl: null,  // Disable online validator
+        docExpansion: "list",  // Expand only tags by default
+        filter: true,  // Enable filter box
+        showExtensions: true,
+        showCommonExtensions: true,
+        tryItOutEnabled: true,  // Enable "Try it out" by default
+        supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch'],
+        oauth2RedirectUrl: window.location.origin + "/docs/swagger-ui/oauth2-redirect.html"
+      });
+    };
+  </script>
+</body>
+</html>
+

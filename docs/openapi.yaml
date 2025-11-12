@@ -1,0 +1,934 @@
+openapi: 3.1.0
+info:
+  title: Zapier Triggers API
+  version: 1.0.0
+  description: |
+    Real-time event ingestion and delivery API for Zapier platform.
+    
+    This API enables developers to send events into Zapier and retrieve them for processing.
+    Events are stored durably with automatic cleanup after 30 days.
+    
+    ## Features
+    - **Event Ingestion**: Send events via simple REST API with idempotency support
+    - **Event Retrieval**: Pull-based delivery with pagination and filtering
+    - **Lease Mechanism**: 5-minute leases prevent duplicate delivery during processing
+    - **Large Payload Support**: Automatic S3 routing for payloads ≥400KB
+    - **Multi-Tenant Isolation**: Complete data isolation per API key
+    
+    ## Authentication
+    All endpoints require API key authentication via the `X-API-Key` header.
+    API keys are in the format `ak_{32chars}`.
+    
+    ## Rate Limiting
+    API Gateway throttling: 1000 requests/second, 2000 burst capacity.
+    
+    ## Error Handling
+    All errors return a structured `ErrorResponse` with code, message, and optional details.
+    See the Error Codes section for troubleshooting guidance.
+  contact:
+    name: Zapier API Support
+    email: api-support@zapier.com
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://api.zapier.com/triggers/v1
+    description: Production environment
+  - url: https://api-dev.zapier.com/triggers/v1
+    description: Development environment
+
+tags:
+  - name: Events
+    description: Event ingestion endpoints
+  - name: Inbox
+    description: Event retrieval and acknowledgment endpoints
+  - name: Health
+    description: System health and monitoring endpoints
+
+security:
+  - ApiKeyAuth: []
+
+paths:
+  /events:
+    post:
+      operationId: ingestEvent
+      summary: Ingest a new event
+      description: |
+        Accepts a new event and stores it for later retrieval.
+        
+        **Idempotency**: If an event with the same `id` already exists, returns 409 Conflict.
+        If `id` is not provided, a unique ID is generated automatically.
+        
+        **Storage Routing**:
+        - Payloads <400KB: Stored inline in DynamoDB
+        - Payloads ≥400KB: Stored in S3 with reference in DynamoDB
+        
+        **S3 Fallback**: If S3 write fails, payload is stored in DynamoDB (may exceed 400KB threshold).
+      tags:
+        - Events
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventInput'
+            examples:
+              minimal:
+                summary: Minimal event (ID auto-generated)
+                value:
+                  event_type: "user.created"
+                  timestamp: "2025-11-11T15:30:45Z"
+                  data:
+                    user_id: "12345"
+                    email: "user@example.com"
+              with_id:
+                summary: Event with explicit ID
+                value:
+                  id: "evt_abc123xyz789"
+                  event_type: "order.completed"
+                  timestamp: "2025-11-11T15:30:45Z"
+                  data:
+                    order_id: "ord_123"
+                    amount: 99.99
+                    currency: "USD"
+              complex_data:
+                summary: Complex nested data
+                value:
+                  event_type: "player.projection.created"
+                  timestamp: "2025-11-11T15:30:45Z"
+                  data:
+                    player_id: "12345"
+                    projection:
+                      points: 25.5
+                      rebounds: 10.2
+                      assists: 8.7
+                    metadata:
+                      source: "analytics"
+                      confidence: 0.95
+      responses:
+        '201':
+          description: Event successfully ingested
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventOutput'
+              examples:
+                success:
+                  summary: Success response
+                  value:
+                    id: "evt_abc123xyz789"
+                    status: "accepted"
+                    created_at: "2025-11-11T15:30:45.123Z"
+        '400':
+          description: Validation error - Invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missing_field:
+                  summary: Missing required field
+                  value:
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Invalid event payload"
+                      details:
+                        field: "event_type"
+                        issue: "Field required"
+                invalid_timestamp:
+                  summary: Invalid timestamp format
+                  value:
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Invalid event payload"
+                      details:
+                        field: "timestamp"
+                        issue: "must be ISO 8601 format"
+                invalid_event_type:
+                  summary: Invalid event type format
+                  value:
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Invalid event payload"
+                      details:
+                        field: "event_type"
+                        issue: "must be dot-notation (namespace.resource.action) with 3-100 characters"
+                invalid_json:
+                  summary: Invalid JSON
+                  value:
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Invalid JSON in request body"
+                      details:
+                        detail: "Expecting property name enclosed in double quotes: line 2 column 1 (char 1)"
+        '401':
+          description: Authentication failed - Invalid or missing API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missing_key:
+                  summary: Missing API key
+                  value:
+                    error:
+                      code: "AUTHENTICATION_ERROR"
+                      message: "Invalid or missing API key"
+                      details:
+                        detail: "X-API-Key header is required"
+                invalid_key:
+                  summary: Invalid API key format
+                  value:
+                    error:
+                      code: "AUTHENTICATION_ERROR"
+                      message: "Invalid or missing API key"
+                      details:
+                        detail: "API key must be in format ak_{32chars}"
+                inactive_key:
+                  summary: Inactive API key
+                  value:
+                    error:
+                      code: "AUTHENTICATION_ERROR"
+                      message: "Invalid or missing API key"
+                      details:
+                        detail: "API key is inactive"
+        '409':
+          description: Conflict - Event ID already exists (idempotency violation)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                duplicate_event:
+                  summary: Duplicate event ID
+                  value:
+                    error:
+                      code: "CONFLICT"
+                      message: "Event with this ID already exists"
+                      details:
+                        event_id: "evt_abc123xyz789"
+                        detail: "Event with this ID was already ingested. Use a different ID or omit to auto-generate."
+        '413':
+          description: Payload too large - Request body exceeds 10MB limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                payload_too_large:
+                  summary: Payload exceeds limit
+                  value:
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Payload size exceeds maximum allowed size (10MB)"
+                      details:
+                        max_size_bytes: 10485760
+                        actual_size_bytes: 11534336
+        '422':
+          description: Semantic validation error - Request is well-formed but semantically invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                semantic_error:
+                  summary: Semantic validation error
+                  value:
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Semantic validation failed"
+                      details:
+                        field: "timestamp"
+                        issue: "Timestamp cannot be in the future"
+        '429':
+          description: Rate limit exceeded - Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                rate_limit:
+                  summary: Rate limit exceeded
+                  value:
+                    error:
+                      code: "RATE_LIMIT_EXCEEDED"
+                      message: "Rate limit exceeded. Please retry after some time."
+                      details:
+                        retry_after_seconds: 60
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                internal_error:
+                  summary: Internal server error
+                  value:
+                    error:
+                      code: "INTERNAL_ERROR"
+                      message: "An internal error occurred. Please try again later."
+                      details:
+                        request_id: "req_1234567890abcdef"
+
+  /inbox:
+    get:
+      operationId: getInbox
+      summary: Retrieve pending events from inbox
+      description: |
+        Retrieves pending events for the authenticated tenant.
+        
+        **Lease Mechanism**: Events retrieved are leased for 5 minutes. During the lease period,
+        the same event will not appear in subsequent queries. If not acknowledged within 5 minutes,
+        the event becomes available again.
+        
+        **Pagination**: Use `cursor` from the response to fetch the next page. Cursors expire after 24 hours.
+        
+        **Filtering**: Filter by event type, timestamp range, and status.
+        
+        **Ordering**: Events are returned in `created_at` ascending order (oldest first).
+      tags:
+        - Inbox
+      parameters:
+        - name: limit
+          in: query
+          description: Number of events to return (default 25, max 100)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+        - name: cursor
+          in: query
+          description: Pagination cursor from previous response (expires after 24 hours)
+          required: false
+          schema:
+            type: string
+            pattern: '^\d+_evt_.+$'
+        - name: after
+          in: query
+          description: Filter events after this ISO 8601 timestamp
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: before
+          in: query
+          description: Filter events before this ISO 8601 timestamp
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: event_type
+          in: query
+          description: Filter by exact event type (dot-notation)
+          required: false
+          schema:
+            type: string
+            pattern: '^[a-z0-9_]+(\.[a-z0-9_]+){2,}$'
+        - name: status
+          in: query
+          description: Filter by event status
+          required: false
+          schema:
+            type: string
+            enum: [pending, acknowledged]
+      responses:
+        '200':
+          description: Successfully retrieved events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboxResponse'
+              examples:
+                with_events:
+                  summary: Response with events
+                  value:
+                    events:
+                      - id: "evt_abc123"
+                        event_type: "user.created"
+                        timestamp: "2025-11-11T15:30:45Z"
+                        data:
+                          user_id: "12345"
+                          email: "user@example.com"
+                        created_at: "2025-11-11T15:30:45.123Z"
+                        attempt_count: 1
+                      - id: "evt_def456"
+                        event_type: "order.completed"
+                        timestamp: "2025-11-11T15:31:00Z"
+                        data:
+                          order_id: "ord_123"
+                          amount: 99.99
+                        created_at: "2025-11-11T15:31:00.456Z"
+                        attempt_count: 0
+                    pagination:
+                      next_cursor: "1699712345_evt_def456"
+                      has_more: true
+                empty_inbox:
+                  summary: Empty inbox
+                  value:
+                    events: []
+                    pagination:
+                      next_cursor: null
+                      has_more: false
+                last_page:
+                  summary: Last page of results
+                  value:
+                    events:
+                      - id: "evt_xyz789"
+                        event_type: "user.updated"
+                        timestamp: "2025-11-11T15:32:00Z"
+                        data:
+                          user_id: "12345"
+                          changes: ["email"]
+                        created_at: "2025-11-11T15:32:00.789Z"
+                        attempt_count: 2
+                    pagination:
+                      next_cursor: null
+                      has_more: false
+        '400':
+          description: Bad request - Invalid query parameters or expired cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_cursor:
+                  summary: Invalid or expired cursor
+                  value:
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Invalid or expired cursor"
+                      details:
+                        field: "cursor"
+                        issue: "Cursor has expired (must be used within 24 hours)"
+                invalid_limit:
+                  summary: Invalid limit value
+                  value:
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Invalid query parameters"
+                      details:
+                        field: "limit"
+                        issue: "must be between 1 and 100"
+                invalid_timestamp_filter:
+                  summary: Invalid timestamp filter
+                  value:
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Invalid query parameters"
+                      details:
+                        field: "after"
+                        issue: "must be ISO 8601 format"
+        '401':
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                auth_error:
+                  summary: Authentication error
+                  value:
+                    error:
+                      code: "AUTHENTICATION_ERROR"
+                      message: "Invalid or missing API key"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                internal_error:
+                  summary: Internal server error
+                  value:
+                    error:
+                      code: "INTERNAL_ERROR"
+                      message: "An internal error occurred. Please try again later."
+
+  /inbox/ack:
+    post:
+      operationId: acknowledgeEvents
+      summary: Acknowledge processed events
+      description: |
+        Marks events as acknowledged, preventing them from being retrieved again.
+        
+        **Batch Processing**: Acknowledge up to 100 events in a single request.
+        
+        **Idempotency**: Acknowledging the same event multiple times is safe and returns success.
+        
+        **Partial Success**: If some events fail (e.g., not found or already acknowledged),
+        they are returned in the `failed` array. Successfully acknowledged events are in `acknowledged`.
+      tags:
+        - Inbox
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AckRequest'
+            examples:
+              single_event:
+                summary: Acknowledge single event
+                value:
+                  event_ids: ["evt_abc123"]
+              batch_events:
+                summary: Acknowledge multiple events
+                value:
+                  event_ids:
+                    - "evt_abc123"
+                    - "evt_def456"
+                    - "evt_xyz789"
+              max_batch:
+                summary: Maximum batch size (100 events)
+                value:
+                  event_ids:
+                    - "evt_1"
+                    - "evt_2"
+                    # ... (up to 100 events)
+      responses:
+        '200':
+          description: Acknowledgment completed (may include partial failures)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AckResponse'
+              examples:
+                all_success:
+                  summary: All events acknowledged successfully
+                  value:
+                    acknowledged:
+                      - "evt_abc123"
+                      - "evt_def456"
+                    failed: []
+                partial_success:
+                  summary: Partial success with failures
+                  value:
+                    acknowledged:
+                      - "evt_abc123"
+                    failed:
+                      - event_id: "evt_def456"
+                        error: "event not found or already acknowledged"
+                idempotent:
+                  summary: Idempotent acknowledgment (already acknowledged)
+                  value:
+                    acknowledged:
+                      - "evt_abc123"
+                    failed: []
+        '400':
+          description: Validation error - Invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                empty_list:
+                  summary: Empty event_ids array
+                  value:
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Invalid request payload"
+                      details:
+                        field: "event_ids"
+                        issue: "must contain at least 1 event ID"
+                too_many_events:
+                  summary: Too many events in batch
+                  value:
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Invalid request payload"
+                      details:
+                        field: "event_ids"
+                        issue: "must contain at most 100 event IDs"
+                invalid_event_id_format:
+                  summary: Invalid event ID format
+                  value:
+                    error:
+                      code: "VALIDATION_ERROR"
+                      message: "Invalid request payload"
+                      details:
+                        field: "event_ids[0]"
+                        issue: "Invalid event_id format: must be evt_{base64url_32chars}"
+        '401':
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                auth_error:
+                  summary: Authentication error
+                  value:
+                    error:
+                      code: "AUTHENTICATION_ERROR"
+                      message: "Invalid or missing API key"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                internal_error:
+                  summary: Internal server error
+                  value:
+                    error:
+                      code: "INTERNAL_ERROR"
+                      message: "An internal error occurred. Please try again later."
+
+  /health:
+    get:
+      operationId: healthCheck
+      summary: Check system health
+      description: |
+        Returns the health status of the API and its dependencies.
+        
+        **Status Codes**:
+        - `200`: System is healthy or degraded (operational)
+        - `503`: System is unhealthy (DynamoDB unavailable)
+        
+        **Status Values**:
+        - `healthy`: All dependencies responding within 100ms
+        - `degraded`: One dependency slow/unavailable, but core (DynamoDB) operational
+        - `unhealthy`: Core dependency (DynamoDB) unavailable
+      tags:
+        - Health
+      responses:
+        '200':
+          description: System is healthy or degraded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                healthy:
+                  summary: All dependencies healthy
+                  value:
+                    status: "healthy"
+                    timestamp: "2025-11-11T15:30:45Z"
+                    version: "1.0.0"
+                    dependencies:
+                      dynamodb: "healthy"
+                      s3: "healthy"
+                degraded:
+                  summary: S3 degraded, DynamoDB healthy
+                  value:
+                    status: "degraded"
+                    timestamp: "2025-11-11T15:30:45Z"
+                    version: "1.0.0"
+                    dependencies:
+                      dynamodb: "healthy"
+                      s3: "degraded"
+        '503':
+          description: Service unavailable - System is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                unhealthy:
+                  summary: DynamoDB unavailable
+                  value:
+                    status: "unhealthy"
+                    timestamp: "2025-11-11T15:30:45Z"
+                    version: "1.0.0"
+                    dependencies:
+                      dynamodb: "unhealthy"
+                      s3: "healthy"
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: |
+        API key for tenant authentication.
+        
+        Format: `ak_{32 random characters}`
+        
+        Example: `ak_abc123def456ghi789jkl012mno345pqr`
+        
+        API keys are scoped to a single tenant. Events are isolated per tenant.
+        Obtain API keys from your Zapier account administrator.
+
+  schemas:
+    EventInput:
+      type: object
+      required:
+        - event_type
+        - timestamp
+        - data
+      properties:
+        id:
+          type: string
+          description: Event identifier (optional, auto-generated if missing)
+          pattern: '^evt_[A-Za-z0-9_-]{32}$'
+          example: "evt_abc123xyz789"
+        event_type:
+          type: string
+          description: Event type in dot-notation format (e.g., resource.action.status)
+          pattern: '^[a-z0-9_]+(\.[a-z0-9_]+){2,}$'
+          minLength: 3
+          maxLength: 100
+          example: "user.created"
+        timestamp:
+          type: string
+          format: date-time
+          description: Event occurrence time in ISO 8601 format
+          example: "2025-11-11T15:30:45Z"
+        data:
+          type: object
+          description: Event payload as arbitrary JSON object
+          additionalProperties: true
+          example:
+            user_id: "12345"
+            email: "user@example.com"
+      example:
+        event_type: "user.created"
+        timestamp: "2025-11-11T15:30:45Z"
+        data:
+          user_id: "12345"
+          email: "user@example.com"
+
+    EventOutput:
+      type: object
+      required:
+        - id
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          description: Event identifier
+          example: "evt_abc123xyz789"
+        status:
+          type: string
+          enum: [accepted]
+          description: Event status
+          example: "accepted"
+        created_at:
+          type: string
+          format: date-time
+          description: Event creation time in ISO 8601 format
+          example: "2025-11-11T15:30:45.123Z"
+
+    InboxEvent:
+      type: object
+      required:
+        - id
+        - event_type
+        - timestamp
+        - data
+        - created_at
+        - attempt_count
+      properties:
+        id:
+          type: string
+          description: Event identifier
+          example: "evt_abc123"
+        event_type:
+          type: string
+          description: Event type in dot-notation
+          example: "user.created"
+        timestamp:
+          type: string
+          format: date-time
+          description: Event occurrence time (ISO 8601)
+          example: "2025-11-11T15:30:45Z"
+        data:
+          type: object
+          description: Event payload
+          additionalProperties: true
+          example:
+            user_id: "12345"
+            email: "user@example.com"
+        created_at:
+          type: string
+          format: date-time
+          description: System ingestion time (ISO 8601)
+          example: "2025-11-11T15:30:45.123Z"
+        attempt_count:
+          type: integer
+          minimum: 0
+          description: Number of retrieval attempts
+          example: 1
+
+    PaginationInfo:
+      type: object
+      required:
+        - has_more
+      properties:
+        next_cursor:
+          type: string
+          nullable: true
+          description: Cursor for next page of results (null if no more pages)
+          example: "1699712345_evt_abc123"
+        has_more:
+          type: boolean
+          description: Whether more events are available
+          example: true
+
+    InboxResponse:
+      type: object
+      required:
+        - events
+        - pagination
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/InboxEvent'
+          description: List of events
+        pagination:
+          $ref: '#/components/schemas/PaginationInfo'
+
+    AckRequest:
+      type: object
+      required:
+        - event_ids
+      properties:
+        event_ids:
+          type: array
+          items:
+            type: string
+            pattern: '^evt_[A-Za-z0-9_-]{32}$'
+          minItems: 1
+          maxItems: 100
+          description: Array of event IDs to acknowledge
+          example: ["evt_abc123", "evt_def456"]
+
+    AckFailure:
+      type: object
+      required:
+        - event_id
+        - error
+      properties:
+        event_id:
+          type: string
+          description: Event identifier that failed
+          example: "evt_xyz789"
+        error:
+          type: string
+          description: Error message describing the failure
+          example: "event not found or already acknowledged"
+
+    AckResponse:
+      type: object
+      required:
+        - acknowledged
+        - failed
+      properties:
+        acknowledged:
+          type: array
+          items:
+            type: string
+          description: Array of successfully acknowledged event IDs
+          example: ["evt_abc123", "evt_def456"]
+        failed:
+          type: array
+          items:
+            $ref: '#/components/schemas/AckFailure'
+          description: Array of failed acknowledgments
+          example: []
+
+    HealthDependencies:
+      type: object
+      required:
+        - dynamodb
+        - s3
+      properties:
+        dynamodb:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          description: DynamoDB connectivity status
+          example: "healthy"
+        s3:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          description: S3 connectivity status
+          example: "healthy"
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+        - version
+        - dependencies
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          description: Overall system health status
+          example: "healthy"
+        timestamp:
+          type: string
+          format: date-time
+          description: Current time in ISO 8601 format
+          example: "2025-11-11T15:30:45Z"
+        version:
+          type: string
+          description: API version
+          example: "1.0.0"
+        dependencies:
+          $ref: '#/components/schemas/HealthDependencies'
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              enum:
+                - VALIDATION_ERROR
+                - AUTHENTICATION_ERROR
+                - NOT_FOUND
+                - CONFLICT
+                - RATE_LIMIT_EXCEEDED
+                - INTERNAL_ERROR
+                - SERVICE_UNAVAILABLE
+              description: Error code for programmatic handling
+              example: "VALIDATION_ERROR"
+            message:
+              type: string
+              description: Human-readable error message
+              example: "Invalid event payload"
+            details:
+              type: object
+              description: Optional error details (field-specific errors, etc.)
+              additionalProperties: true
+              properties:
+                field:
+                  type: string
+                  description: Field name with error
+                  example: "timestamp"
+                issue:
+                  type: string
+                  description: Description of the issue
+                  example: "must be ISO 8601 format"
+                detail:
+                  type: string
+                  description: Additional error detail
+                  example: "Expecting property name enclosed in double quotes"
+                additional:
+                  type: object
+                  description: Additional error context
+                  additionalProperties: true
+      example:
+        error:
+          code: "VALIDATION_ERROR"
+          message: "Invalid event payload"
+          details:
+            field: "timestamp"
+            issue: "must be ISO 8601 format"
+

@@ -211,6 +211,7 @@ Coverage analysis was attempted but modules need to be imported directly for acc
 - **Decision:** Query for existing event_id before insertion (not atomic, but acceptable for MVP)
 - **Rationale:** Conditional writes on non-key attributes are complex; query-then-insert is simpler for MVP
 - **Implementation:** Query partition for event_id, raise ConditionalCheckFailedException if found
+- **Known Limitation:** Current approach is query-then-insert (not atomic). There is a small race condition window where two concurrent requests with the same event_id could both pass the query check before either inserts. For true atomicity, use conditional writes with a GSI on event_id. This is acceptable for MVP (returns 409 Conflict as required by PRD), but should be enhanced post-MVP for production workloads with high concurrency.
 
 ---
 
@@ -269,6 +270,14 @@ Coverage analysis was attempted but modules need to be imported directly for acc
    - Log statements include tenant_id, event_id for correlation
    - Error handling is structured and ready for metrics
 
+4. **Error Details Enhancement (Optional but Recommended):**
+   - ⚠️ **Enhancement Opportunity:** Current error responses use ErrorResponse schema but could include more actionable details per PRD_Product_Reqs_v2.md FR-7
+   - Consider enhancing error `details` field to include:
+     - Field-level validation errors: `{"field": "timestamp", "issue": "must be ISO 8601 format"}` (Pydantic already provides this, extract and format)
+     - Specific DynamoDB error codes: Include ConditionalCheckFailedException details, specific error messages
+   - This aligns with PRD requirement for "actionable error messages" and improves developer experience
+   - See Recommendations section above for details
+
 ### Dependencies Ready:
 - ✅ All handlers implemented and tested
 - ✅ Storage operations complete
@@ -320,11 +329,11 @@ Coverage analysis was attempted but modules need to be imported directly for acc
 
 1. **Performance Optimization:** Consider using DynamoDB GSI for event_id lookups in production (currently using client-side filtering for MVP)
 
-2. **Atomic Idempotency:** Consider using DynamoDB conditional writes with a GSI on event_id for true atomic idempotency checks (current implementation is query-then-insert)
+2. **Atomic Idempotency:** ⚠️ **Known Limitation** - Current implementation uses query-then-insert (not atomic). For true atomicity, use DynamoDB conditional writes with a GSI on event_id. This is acceptable for MVP (meets PRD requirement to return 409 Conflict for duplicates), but should be enhanced post-MVP for production workloads with high concurrency. The race condition window is small and acceptable for MVP scope.
 
 3. **Lease Filtering:** Consider using DynamoDB FilterExpression with proper attribute handling for lease exclusion in production (currently client-side for MVP compatibility)
 
-4. **Error Handling:** All error paths are handled, but consider adding more detailed error context for debugging
+4. **Error Handling:** ⚠️ **Enhancement Needed** - All error paths are handled with structured ErrorResponse schema, but error details could be more actionable per PRD_Product_Reqs_v2.md FR-7. Current implementation includes error code and message, but should enhance `details` field to include: (a) field-level validation errors (e.g., `{"field": "timestamp", "issue": "must be ISO 8601 format"}`), (b) specific DynamoDB error codes (e.g., ConditionalCheckFailedException details). **Note for Sub-Agent 4:** Consider enhancing error details in handler error responses to match PRD FR-7 example format.
 
 5. **Testing:** Consider adding integration tests that test end-to-end flows (ingest → retrieve → ack)
 

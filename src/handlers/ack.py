@@ -5,7 +5,7 @@ Handles batch event acknowledgment with idempotency and error handling.
 """
 import json
 import os
-import logging
+import time
 from typing import Dict, Any
 
 from src.lib.auth import get_tenant_id_from_event, AuthenticationError
@@ -17,9 +17,10 @@ from src.models.schemas import (
     ErrorCode
 )
 from src.lib.storage import acknowledge_events
+from src.lib.logging import get_logger
+from src.lib.metrics import emit_event_acknowledged, metrics
 
-logger = logging.getLogger(__name__)
-logger.setLevel(os.environ.get('LOG_LEVEL', 'INFO'))
+logger = get_logger(__name__)
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -41,12 +42,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     Returns:
         Lambda response dictionary with statusCode, body, headers
     """
+    start_time = time.time()
+    
     try:
         # Extract tenant_id from API key (handles auth automatically)
         try:
             tenant_id = get_tenant_id_from_event(event)
         except AuthenticationError as e:
-            logger.warning(f"Authentication failed: {e}")
+            logger.warning("Authentication failed", extra={"error": str(e)})
             error_response = ErrorResponse.create(
                 ErrorCode.AUTHENTICATION_ERROR,
                 "Invalid or missing API key",
@@ -64,7 +67,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         try:
             body = json.loads(event.get('body', '{}'))
         except json.JSONDecodeError as e:
-            logger.warning(f"Invalid JSON in request body: {e}")
+            logger.warning("Invalid JSON in request body", extra={"error": str(e)})
             error_response = ErrorResponse.create(
                 ErrorCode.VALIDATION_ERROR,
                 "Invalid JSON in request body",
@@ -82,7 +85,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         try:
             ack_request = AckRequest(**body)
         except Exception as e:
-            logger.warning(f"Validation error: {e}")
+            logger.warning("Validation error", extra={"error": str(e), "tenant_id": tenant_id})
             error_response = ErrorResponse.create(
                 ErrorCode.VALIDATION_ERROR,
                 "Invalid acknowledgment request",
@@ -103,7 +106,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 event_ids=ack_request.event_ids
             )
         except Exception as e:
-            logger.error(f"Error acknowledging events: {e}")
+            logger.error(
+                "Error acknowledging events",
+                extra={
+                    "tenant_id": tenant_id,
+                    "error": str(e)
+                },
+                exc_info=True
+            )
             error_response = ErrorResponse.create(
                 ErrorCode.INTERNAL_ERROR,
                 "Failed to acknowledge events",
@@ -117,6 +127,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'body': json.dumps(error_response.model_dump())
             }
         
+        # Calculate latency
+        latency_ms = (time.time() - start_time) * 1000
+        
         # Convert failures to AckFailure models
         failures = [
             AckFailure(event_id=f['event_id'], error=f['error'])
@@ -129,9 +142,27 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             failed=failures
         )
         
+        # Emit metrics
+        try:
+            emit_event_acknowledged(
+                tenant_id=tenant_id,
+                event_count=len(result['acknowledged']),
+                latency_ms=latency_ms
+            )
+            metrics.flush_metrics()
+        except Exception as e:
+            # Don't fail request if metrics fail
+            logger.warning("Failed to emit metrics", extra={"error": str(e)})
+        
+        # Structured logging with context
         logger.info(
-            f"Acknowledged {len(result['acknowledged'])} events, "
-            f"{len(result['failed'])} failed for tenant {tenant_id}"
+            "Events acknowledged",
+            extra={
+                "tenant_id": tenant_id,
+                "acknowledged_count": len(result['acknowledged']),
+                "failed_count": len(result['failed']),
+                "latency_ms": latency_ms
+            }
         )
         
         return {
@@ -143,7 +174,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
         
     except Exception as e:
-        logger.error(f"Unexpected error in ack handler: {e}", exc_info=True)
+        logger.error(
+            "Unexpected error in ack handler",
+            extra={"error": str(e)},
+            exc_info=True
+        )
         error_response = ErrorResponse.create(
             ErrorCode.INTERNAL_ERROR,
             "Internal server error",

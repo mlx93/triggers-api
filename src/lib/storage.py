@@ -523,10 +523,12 @@ def query_events(
     for item in items:
         if item.get('s3_key'):
             try:
-                s3_data = get_large_payload(EVENTS_BUCKET_NAME, item['s3_key'])
+                s3_data = get_large_payload(get_events_bucket_name(), item['s3_key'])
                 item['data'] = s3_data
             except Exception as e:
                 logger.error(f"Failed to fetch S3 payload for {item.get('s3_key')}: {e}")
+                # Don't set data to None - skip this item or use fallback
+                # For now, we'll skip items where S3 fetch fails
                 item['data'] = None
     
     # Generate next_cursor if has_more

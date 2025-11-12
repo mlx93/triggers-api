@@ -5,7 +5,7 @@ Handles event retrieval with filters, pagination, cursor validation, and lease m
 """
 import json
 import os
-import logging
+import time
 from typing import Dict, Any
 from urllib.parse import parse_qs
 
@@ -19,9 +19,10 @@ from src.models.schemas import (
     ErrorCode
 )
 from src.lib.storage import query_events
+from src.lib.logging import get_logger
+from src.lib.metrics import emit_inbox_retrieved, metrics
 
-logger = logging.getLogger(__name__)
-logger.setLevel(os.environ.get('LOG_LEVEL', 'INFO'))
+logger = get_logger(__name__)
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -44,12 +45,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     Returns:
         Lambda response dictionary with statusCode, body, headers
     """
+    start_time = time.time()
+    
     try:
         # Extract tenant_id from API key (handles auth automatically)
         try:
             tenant_id = get_tenant_id_from_event(event)
         except AuthenticationError as e:
-            logger.warning(f"Authentication failed: {e}")
+            logger.warning("Authentication failed", extra={"error": str(e)})
             error_response = ErrorResponse.create(
                 ErrorCode.AUTHENTICATION_ERROR,
                 "Invalid or missing API key",
@@ -70,7 +73,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         try:
             inbox_params = InboxQueryParams(**query_params)
         except Exception as e:
-            logger.warning(f"Invalid query parameters: {e}")
+            logger.warning("Invalid query parameters", extra={"error": str(e), "tenant_id": tenant_id})
             error_response = ErrorResponse.create(
                 ErrorCode.VALIDATION_ERROR,
                 "Invalid query parameters",
@@ -90,7 +93,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 from src.lib.storage import parse_cursor
                 parse_cursor(inbox_params.cursor)  # Will raise ValueError if invalid
             except ValueError as e:
-                logger.warning(f"Invalid cursor: {e}")
+                logger.warning("Invalid cursor", extra={"error": str(e), "tenant_id": tenant_id, "cursor": inbox_params.cursor})
                 error_response = ErrorResponse.create(
                     ErrorCode.VALIDATION_ERROR,
                     f"Invalid cursor: {str(e)}",
@@ -124,7 +127,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 limit=inbox_params.limit
             )
         except Exception as e:
-            logger.error(f"Error querying events: {e}")
+            logger.error(
+                "Error querying events",
+                extra={
+                    "tenant_id": tenant_id,
+                    "error": str(e)
+                },
+                exc_info=True
+            )
             error_response = ErrorResponse.create(
                 ErrorCode.INTERNAL_ERROR,
                 "Failed to retrieve events",
@@ -144,6 +154,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         inbox_events = []
         for item in events:
             try:
+                # Skip events where data is None (S3 fetch failed)
+                if item.get('data') is None:
+                    logger.warning(f"Skipping event {item.get('id')}: S3 data fetch failed")
+                    continue
+                
                 attempt_count = item.get('attempt_count', 0)
                 if isinstance(attempt_count, Decimal):
                     attempt_count = int(attempt_count)
@@ -168,13 +183,37 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             has_more=next_cursor is not None
         )
         
+        # Calculate latency
+        latency_ms = (time.time() - start_time) * 1000
+        
         # Build response
         inbox_response = InboxResponse(
             events=inbox_events,
             pagination=pagination
         )
         
-        logger.info(f"Retrieved {len(inbox_events)} events for tenant {tenant_id}")
+        # Emit metrics
+        try:
+            emit_inbox_retrieved(
+                tenant_id=tenant_id,
+                event_count=len(inbox_events),
+                latency_ms=latency_ms
+            )
+            metrics.flush_metrics()
+        except Exception as e:
+            # Don't fail request if metrics fail
+            logger.warning("Failed to emit metrics", extra={"error": str(e)})
+        
+        # Structured logging with context
+        logger.info(
+            "Retrieved events",
+            extra={
+                "tenant_id": tenant_id,
+                "event_count": len(inbox_events),
+                "latency_ms": latency_ms,
+                "has_more": pagination.has_more
+            }
+        )
         
         return {
             'statusCode': 200,
@@ -185,7 +224,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
         
     except Exception as e:
-        logger.error(f"Unexpected error in inbox handler: {e}", exc_info=True)
+        logger.error(
+            "Unexpected error in inbox handler",
+            extra={"error": str(e)},
+            exc_info=True
+        )
         error_response = ErrorResponse.create(
             ErrorCode.INTERNAL_ERROR,
             "Internal server error",

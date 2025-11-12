@@ -6,7 +6,7 @@ Handles event ingestion with idempotency, S3 fallback, and error handling.
 import json
 import os
 import secrets
-import logging
+import time
 from typing import Dict, Any
 from botocore.exceptions import ClientError
 
@@ -19,9 +19,10 @@ from src.models.schemas import (
     ErrorCode
 )
 from src.lib.storage import store_event, generate_event_id
+from src.lib.logging import get_logger, add_logging_context
+from src.lib.metrics import emit_event_ingested, metrics
 
-logger = logging.getLogger(__name__)
-logger.setLevel(os.environ.get('LOG_LEVEL', 'INFO'))
+logger = get_logger(__name__)
 
 # Constants
 MAX_PAYLOAD_SIZE_BYTES = 10 * 1024 * 1024  # 10MB
@@ -46,12 +47,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     Returns:
         Lambda response dictionary with statusCode, body, headers
     """
+    start_time = time.time()
+    
     try:
         # Extract tenant_id from API key (handles auth automatically)
         try:
             tenant_id = get_tenant_id_from_event(event)
         except AuthenticationError as e:
-            logger.warning(f"Authentication failed: {e}")
+            logger.warning("Authentication failed", extra={"error": str(e)})
             error_response = ErrorResponse.create(
                 ErrorCode.AUTHENTICATION_ERROR,
                 "Invalid or missing API key",
@@ -69,7 +72,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         try:
             body = json.loads(event.get('body', '{}'))
         except json.JSONDecodeError as e:
-            logger.warning(f"Invalid JSON in request body: {e}")
+            logger.warning("Invalid JSON in request body", extra={"error": str(e)})
             error_response = ErrorResponse.create(
                 ErrorCode.VALIDATION_ERROR,
                 "Invalid JSON in request body",
@@ -87,7 +90,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         try:
             event_input = EventInput(**body)
         except Exception as e:
-            logger.warning(f"Validation error: {e}")
+            logger.warning("Validation error", extra={"error": str(e), "tenant_id": tenant_id})
             error_response = ErrorResponse.create(
                 ErrorCode.VALIDATION_ERROR,
                 "Invalid event payload",
@@ -110,7 +113,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         payload_size = get_payload_size_bytes(event_input.data)
         
         if payload_size > MAX_PAYLOAD_SIZE_BYTES:
-            logger.warning(f"Payload too large: {payload_size} bytes")
+            logger.warning(
+                "Payload too large",
+                extra={
+                    "tenant_id": tenant_id,
+                    "event_id": event_id,
+                    "payload_size": payload_size,
+                    "max_size": MAX_PAYLOAD_SIZE_BYTES
+                }
+            )
             error_response = ErrorResponse.create(
                 ErrorCode.VALIDATION_ERROR,
                 f"Payload size exceeds maximum of {MAX_PAYLOAD_SIZE_BYTES} bytes",
@@ -145,7 +156,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         except ClientError as e:
             if e.response['Error']['Code'] == 'ConditionalCheckFailedException':
                 # Duplicate event_id - idempotency conflict
-                logger.info(f"Duplicate event_id: {event_id}")
+                logger.info(
+                    "Duplicate event_id",
+                    extra={
+                        "tenant_id": tenant_id,
+                        "event_id": event_id,
+                        "event_type": event_input.event_type
+                    }
+                )
                 error_response = ErrorResponse.create(
                     ErrorCode.CONFLICT,
                     "Event with this ID already exists",
@@ -160,7 +178,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
             else:
                 # Other DynamoDB error
-                logger.error(f"DynamoDB error: {e}")
+                logger.error(
+                    "DynamoDB error",
+                    extra={
+                        "tenant_id": tenant_id,
+                        "event_id": event_id,
+                        "error": str(e),
+                        "error_code": e.response.get('Error', {}).get('Code', 'Unknown')
+                    }
+                )
                 error_response = ErrorResponse.create(
                     ErrorCode.INTERNAL_ERROR,
                     "Failed to store event",
@@ -174,7 +200,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'body': json.dumps(error_response.model_dump())
                 }
         except Exception as e:
-            logger.error(f"Unexpected error storing event: {e}")
+            logger.error(
+                "Unexpected error storing event",
+                extra={
+                    "tenant_id": tenant_id,
+                    "event_id": event_id,
+                    "error": str(e)
+                },
+                exc_info=True
+            )
             error_response = ErrorResponse.create(
                 ErrorCode.INTERNAL_ERROR,
                 "Internal server error",
@@ -188,6 +222,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'body': json.dumps(error_response.model_dump())
             }
         
+        # Calculate latency
+        latency_ms = (time.time() - start_time) * 1000
+        
         # Build success response
         from datetime import datetime, timezone
         created_at = datetime.now(timezone.utc).isoformat()
@@ -198,7 +235,32 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             created_at=created_at
         )
         
-        logger.info(f"Event ingested successfully: {event_id}, storage: {storage_result['storage_type']}")
+        # Emit metrics
+        try:
+            emit_event_ingested(
+                tenant_id=tenant_id,
+                event_type=event_input.event_type,
+                latency_ms=latency_ms,
+                payload_size=payload_size
+            )
+            # Flush metrics (aws-lambda-powertools requires explicit flush)
+            metrics.flush_metrics()
+        except Exception as e:
+            # Don't fail request if metrics fail
+            logger.warning("Failed to emit metrics", extra={"error": str(e)})
+        
+        # Structured logging with context
+        logger.info(
+            "Event ingested successfully",
+            extra={
+                "tenant_id": tenant_id,
+                "event_id": event_id,
+                "event_type": event_input.event_type,
+                "payload_size": payload_size,
+                "storage_type": storage_result['storage_type'],
+                "latency_ms": latency_ms
+            }
+        )
         
         return {
             'statusCode': 201,
@@ -209,7 +271,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
         
     except Exception as e:
-        logger.error(f"Unexpected error in ingest handler: {e}", exc_info=True)
+        logger.error(
+            "Unexpected error in ingest handler",
+            extra={"error": str(e)},
+            exc_info=True
+        )
         error_response = ErrorResponse.create(
             ErrorCode.INTERNAL_ERROR,
             "Internal server error",
