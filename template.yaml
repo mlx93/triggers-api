@@ -146,11 +146,21 @@ Resources:
             ApiId: !Ref TriggersApi
             Path: /health
             Method: GET
+
+  RootFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'zapier-triggers-root-${Environment}-mlx'
+      CodeUri: .
+      Handler: src.handlers.root.lambda_handler
+      Events:
+        GetRoot:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref TriggersApi
+            Path: /
+            Method: GET
       Policies:
-        - DynamoDBReadPolicy:
-            TableName: !Ref EventsTable
-        - S3ReadPolicy:
-            BucketName: !Ref EventsBucket
         - Version: '2012-10-17'
           Statement:
             - Effect: Allow
@@ -229,6 +239,12 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/lambda/zapier-triggers-health-${Environment}-mlx'
+      RetentionInDays: 30
+
+  RootFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/zapier-triggers-root-${Environment}-mlx'
       RetentionInDays: 30
 
   # S3 Bucket
