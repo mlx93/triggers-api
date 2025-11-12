@@ -66,7 +66,7 @@
 {
   "event_type": "player.projection.created",
   "timestamp": "2025-11-11T15:30:45Z",
-  "data": {"player_id": "12345", "player_name": "Mike Trout", "projection_value": 42.5}
+  "data": {"player_id": 12345, "player_name": "Mike Trout", "projection_value": 42}
 }
 ```
 
@@ -81,7 +81,7 @@
   "id": "evt_test_12345",
   "event_type": "player.projection.created",
   "timestamp": "2025-11-11T15:30:45Z",
-  "data": {"player_id": "12345", "player_name": "Mike Trout", "projection_value": 42.5}
+  "data": {"player_id": 12345, "player_name": "Mike Trout", "projection_value": 42}
 }
 ```
 
@@ -109,7 +109,7 @@
 
 **[Show response with events, highlight `attempt_count: 1`]**
 
-> "Notice the attempt count is 1. This event has a 5-minute lease. If my app crashes before acknowledging, this event automatically becomes available again after the lease expires. No lost events."
+> "Notice the attempt count is 1. This event has a 20-second lease. If my app crashes before acknowledging, this event automatically becomes available again after the lease expires. No lost events."
 
 > "Let me send another event before demonstrating multi-tenant isolation."
 
@@ -118,7 +118,7 @@
 {
   "event_type": "player.projection.updated",
   "timestamp": "2025-11-11T15:31:00Z",
-  "data": {"player_id": "12345", "projection_value": 43.0}
+  "data": {"player_id": 12345, "projection_value": 43}
 }
 ```
 
@@ -162,33 +162,11 @@
 
 ---
 
-### Scene 6: Monitoring + Health (4:15 - 4:45)
-
-**[Screen: CloudWatch Dashboard]**
-
-> "Let's look at monitoring. We've built a comprehensive CloudWatch dashboard tracking event ingestion rate, latency percentiles, and error rates."
-
-**[Show dashboard metrics]**
-
-> "Everything is tracking well under our 100-millisecond target. This isn't a prototype - it's production-ready."
-
-**[Switch to Swagger UI GET /health]**
-
-> "The health endpoint shows system status."
-
-**[Click "Execute", show response with status]**
-
-> "Status may show 'degraded' - this is normal when latency is 100-500ms. Not an error, just means response time is slightly slower than optimal."
-
-**Key Points:** Real-time metrics | Production-ready observability | Health status explained
-
----
-
-### Scene 7: Closing (4:45 - 5:00)
+### Scene 6: Closing (4:15 - 5:00)
 
 **[Screen: Swagger UI homepage]**
 
-> "To summarize: the Zapier Triggers API provides reliable, real-time event ingestion with sub-100 millisecond latency. Pull-based delivery means Zapier controls timing. Idempotency prevents duplicates. Multi-tenant isolation ensures your data is secure. And the lease mechanism guarantees no lost events."
+> "To summarize: the Zapier Triggers API provides reliable, real-time event ingestion with sub-100 millisecond latency. Pull-based delivery means Zapier controls timing. Idempotency prevents duplicates. Multi-tenant isolation ensures your data is secure. And the 20-second lease mechanism guarantees no lost events - if your app crashes, events automatically become available again."
 
 > "Get your API key and start building. Documentation is at triggers-api-docs-mlx.s3-website-us-east-1.amazonaws.com. Thanks for watching!"
 
@@ -202,7 +180,7 @@
 
 **Common Questions:**
 - **Q: Why pull-based instead of webhooks?** A: Zapier controls timing, no webhook endpoints to secure, Zapier can batch process efficiently.
-- **Q: What if my app crashes?** A: 5-minute lease mechanism ensures events automatically become available again.
+- **Q: What if my app crashes?** A: 20-second lease mechanism ensures events automatically become available again.
 - **Q: Is my data secure?** A: Complete multi-tenant isolation - each API key is completely separate.
 - **Q: How do I handle duplicates?** A: Idempotency built-in - send same event_id twice, get existing event back (409 Conflict).
 

@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 EVENTS_TABLE_NAME = os.environ.get('EVENTS_TABLE', 'zapier-triggers-events-dev')
 EVENTS_BUCKET_NAME = os.environ.get('EVENTS_BUCKET', 'zapier-triggers-events-dev')
 SIZE_THRESHOLD_BYTES = int(os.environ.get('SIZE_THRESHOLD_BYTES', '400000'))
-LEASE_DURATION_MINUTES = int(os.environ.get('LEASE_DURATION_MINUTES', '5'))
+LEASE_DURATION_SECONDS = int(os.environ.get('LEASE_DURATION_SECONDS', '300'))  # Default 5 minutes (300 seconds)
 EVENT_TTL_DAYS = 30
 
 # Initialize AWS clients
@@ -495,8 +495,8 @@ def query_events(
     # Limit results
     items = items[:limit]
     
-    # Update leases: set in_flight_until = now + 5 minutes, increment attempt_count
-    lease_expiry = (now + timedelta(minutes=LEASE_DURATION_MINUTES)).isoformat()
+    # Update leases: set in_flight_until = now + lease duration, increment attempt_count
+    lease_expiry = (now + timedelta(seconds=LEASE_DURATION_SECONDS)).isoformat()
     
     for item in items:
         event_id = item['id']
@@ -562,7 +562,7 @@ def query_events(
 def update_event_lease(
     tenant_id: str,
     event_id: str,
-    lease_duration_minutes: int = None
+    lease_duration_seconds: int = None
 ) -> bool:
     """
     Update event lease (in_flight_until and increment attempt_count).
@@ -570,17 +570,17 @@ def update_event_lease(
     Args:
         tenant_id: Tenant identifier
         event_id: Event identifier
-        lease_duration_minutes: Lease duration in minutes (defaults to LEASE_DURATION_MINUTES)
+        lease_duration_seconds: Lease duration in seconds (defaults to LEASE_DURATION_SECONDS)
         
     Returns:
         True if update successful, False otherwise
     """
-    if lease_duration_minutes is None:
-        lease_duration_minutes = LEASE_DURATION_MINUTES
+    if lease_duration_seconds is None:
+        lease_duration_seconds = LEASE_DURATION_SECONDS
     
     pk = f"TENANT#{tenant_id}"
     now = datetime.now(timezone.utc)
-    lease_expiry = (now + timedelta(minutes=lease_duration_minutes)).isoformat()
+    lease_expiry = (now + timedelta(seconds=lease_duration_seconds)).isoformat()
     
     # Find event first (filter client-side)
     response = get_events_table().query(

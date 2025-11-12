@@ -23,7 +23,7 @@ Globals:
         EVENTS_BUCKET: !Ref EventsBucket
         ENVIRONMENT: !Ref Environment
         LOG_LEVEL: INFO
-        LEASE_DURATION_MINUTES: '5'
+        LEASE_DURATION_SECONDS: '20'
         SIZE_THRESHOLD_BYTES: '400000'
 
 Resources:
@@ -148,6 +148,19 @@ Resources:
             ApiId: !Ref TriggersApi
             Path: /health
             Method: GET
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref EventsTable
+        - S3ReadPolicy:
+            BucketName: !Ref EventsBucket
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: '*'
 
   RootFunction:
     Type: AWS::Serverless::Function
