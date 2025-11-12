@@ -70,6 +70,8 @@ paths:
         **S3 Fallback**: If S3 write fails, payload is stored in DynamoDB (may exceed 400KB threshold).
       tags:
         - Events
+      security:
+        - ApiKeyAuth: []
       requestBody:
         required: true
         content:
@@ -293,6 +295,8 @@ paths:
         **Ordering**: Events are returned in `created_at` ascending order (oldest first).
       tags:
         - Inbox
+      security:
+        - ApiKeyAuth: []
       parameters:
         - name: limit
           in: query
@@ -467,6 +471,8 @@ paths:
         they are returned in the `failed` array. Successfully acknowledged events are in `acknowledged`.
       tags:
         - Inbox
+      security:
+        - ApiKeyAuth: []
       requestBody:
         required: true
         content:
@@ -599,6 +605,8 @@ paths:
         - `unhealthy`: Core dependency (DynamoDB) unavailable
       tags:
         - Health
+      security:
+        - ApiKeyAuth: []
       responses:
         '200':
           description: System is healthy or degraded

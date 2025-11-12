@@ -18,11 +18,71 @@
       margin:0;
       background: #fafafa;
     }
+    /* Custom topbar styling */
     .swagger-ui .topbar {
       background-color: #ff4a00;
     }
     .swagger-ui .topbar .download-url-wrapper {
       display: none;
+    }
+    
+    /* Increase spacing between Authorize and Close buttons */
+    .swagger-ui .auth-container .authorize-btn-wrapper {
+      display: flex;
+      gap: 20px;
+      justify-content: flex-end;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #e0e0e0;
+    }
+    
+    /* Better separation between request and response sections */
+    .swagger-ui .responses-wrapper {
+      margin-top: 40px;
+      padding-top: 30px;
+      border-top: 3px solid #3b4151;
+    }
+    
+    /* Larger "Responses" heading */
+    .swagger-ui .responses-inner h4,
+    .swagger-ui .responses-inner h5 {
+      font-size: 24px !important;
+      font-weight: 700 !important;
+      color: #3b4151 !important;
+      margin-bottom: 20px !important;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    /* Add visual separation for response section */
+    .swagger-ui .response-col_status {
+      background: #f7f7f7;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+    }
+    
+    /* Curl section styling */
+    .swagger-ui .curl-command {
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid #e8e8e8;
+    }
+    
+    /* Lock icon styling - show locked by default */
+    .swagger-ui .btn.authorize {
+      border-color: #cc3700;
+    }
+    
+    .swagger-ui .btn.authorize.unlocked {
+      border-color: #49cc90;
+    }
+    
+    /* Increase gap between operation execute buttons */
+    .swagger-ui .execute-wrapper {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #e0e0e0;
     }
   </style>
 </head>
@@ -34,7 +94,7 @@
     window.onload = function() {
       // SwaggerUIBundle configuration
       const ui = SwaggerUIBundle({
-        url: "./openapi.yaml",  // Relative path to OpenAPI spec
+        url: "./openapi.yaml?v=" + Date.now(),  // Relative path to OpenAPI spec with cache busting
         dom_id: '#swagger-ui',
         deepLinking: true,
         presets: [
@@ -52,10 +112,65 @@
         showCommonExtensions: true,
         tryItOutEnabled: true,  // Enable "Try it out" by default
         supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch'],
-        oauth2RedirectUrl: window.location.origin + "/docs/swagger-ui/oauth2-redirect.html"
+        oauth2RedirectUrl: window.location.origin + "/docs/swagger-ui/oauth2-redirect.html",
+        
+        // Request interceptor to add custom styling and behavior
+        requestInterceptor: (req) => {
+          // Show all operations as locked initially if no API key
+          return req;
+        },
+        
+        // On complete - customize UI after load
+        onComplete: () => {
+          // Force all operations to show as locked initially
+          updateAuthorizationStatus();
+          
+          // Listen for authorization changes
+          const observer = new MutationObserver(() => {
+            updateAuthorizationStatus();
+          });
+          
+          // Observe the authorize button for changes
+          const authBtn = document.querySelector('.btn.authorize');
+          if (authBtn) {
+            observer.observe(authBtn, { attributes: true, childList: true, subtree: true });
+          }
+        }
       });
+      
+      // Function to update authorization status visualization
+      function updateAuthorizationStatus() {
+        const authBtn = document.querySelector('.btn.authorize');
+        const lockIcons = document.querySelectorAll('.authorization__btn.locked, .authorization__btn.unlocked');
+        
+        // Check if API key is present in localStorage or auth state
+        const isAuthorized = ui.authSelectors && ui.authSelectors.authorized() && 
+                            Object.keys(ui.authSelectors.authorized().toJS()).length > 0;
+        
+        if (authBtn) {
+          if (isAuthorized) {
+            authBtn.classList.add('unlocked');
+            authBtn.classList.remove('locked');
+          } else {
+            authBtn.classList.remove('unlocked');
+            authBtn.classList.add('locked');
+          }
+        }
+        
+        // Update all operation lock icons
+        lockIcons.forEach(icon => {
+          if (isAuthorized) {
+            icon.classList.remove('locked');
+            icon.classList.add('unlocked');
+          } else {
+            icon.classList.add('locked');
+            icon.classList.remove('unlocked');
+          }
+        });
+      }
+      
+      window.ui = ui;
     };
   </script>
 </body>
 </html>
-

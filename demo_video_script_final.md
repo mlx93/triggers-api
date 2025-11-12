@@ -8,7 +8,8 @@
 
 - [ ] API Base: `https://xiz2bca1sg.execute-api.us-east-1.amazonaws.com/`
 - [ ] Swagger UI: `http://triggers-api-docs-mlx.s3-website-us-east-1.amazonaws.com`
-- [ ] Two API keys: `ak_test1234567890123456789012345678` (Key A) + second key (Key B)
+- [ ] Two API keys ready: `ak_test1234567890123456789012345678` (Key A) + `ak_test123456789012345678901234567890` (Key B)
+- [ ] Authorize with API Key A in Swagger UI before starting (click "Authorize" button at top)
 - [ ] Payloads ready: small event, large event (>400KB), event with explicit `id`
 - [ ] CloudWatch dashboard open
 
@@ -58,6 +59,8 @@
 
 > "Let's send our first event."
 
+**[Click "Authorize" at top, enter API key: `ak_test1234567890123456789012345678`]**
+
 **[Click "Try it out", paste payload]**
 ```json
 {
@@ -67,11 +70,20 @@
 }
 ```
 
-**[Enter API key, click "Execute"]**
+**[Click "Execute"]**
 
 > "201 Created in under 100 milliseconds. The event is stored durably. Now here's what makes this unique - idempotency."
 
-**[Send same event with explicit `id`: `"id": "evt_test_12345"`]**
+**[Send same event with explicit `id`]**
+
+```json
+{
+  "id": "evt_test_12345",
+  "event_type": "player.projection.created",
+  "timestamp": "2025-11-11T15:30:45Z",
+  "data": {"player_id": "12345", "player_name": "Mike Trout", "projection_value": 42.5}
+}
+```
 
 **[Click "Execute", show 201 Created]**
 
@@ -93,25 +105,42 @@
 
 > "Now let's retrieve events. This is pull-based - Zapier controls when to fetch, not the sender."
 
-**[Click "Try it out", enter API Key A, click "Execute"]**
+**[Click "Try it out", click "Execute"]**
 
 **[Show response with events, highlight `attempt_count: 1`]**
 
 > "Notice the attempt count is 1. This event has a 5-minute lease. If my app crashes before acknowledging, this event automatically becomes available again after the lease expires. No lost events."
 
-**[Switch to API Key B in Swagger UI]**
+> "Let me send another event before demonstrating multi-tenant isolation."
 
-> "Now let's demonstrate multi-tenant isolation. I'll try to retrieve events with a different API key."
+**[Switch to POST /events, click "Try it out", paste payload]**
+```json
+{
+  "event_type": "player.projection.updated",
+  "timestamp": "2025-11-11T15:31:00Z",
+  "data": {"player_id": "12345", "projection_value": 43.0}
+}
+```
 
-**[Enter API Key B, click "Execute"]**
+**[Click "Execute", show 201 Created]**
+
+> "Now let's demonstrate multi-tenant isolation. I'll switch to a different API key."
+
+**[Click "Authorize" at top, enter different API key (Key B), close dialog]**
+
+**[Click "Try it out", click "Execute"]**
 
 **[Show empty inbox: `{"events": [], "pagination": {...}}`]**
 
 > "Empty inbox. Complete isolation - your data is YOUR data."
 
-**[Switch back to API Key A, retrieve again]**
+**[Click "Authorize" at top, switch back to API Key A, close dialog]**
 
-> "Switch back to the original key, and the event appears. Each API key is completely separate."
+**[Switch back to GET /inbox, click "Try it out", click "Execute"]**
+
+**[Show response with the second event (projection.updated)]**
+
+> "Switch back to the original key, and we see the second event we just sent. The first event is still under lease from our earlier retrieval, but this new event appears immediately. Each API key is completely separate."
 
 **Key Points:** Pull-based model | Lease mechanism (automatic retry) | Complete multi-tenant isolation
 
