@@ -8,7 +8,9 @@
 
 - [ ] API Base: `https://xiz2bca1sg.execute-api.us-east-1.amazonaws.com/`
 - [ ] Swagger UI: `http://triggers-api-docs-mlx.s3-website-us-east-1.amazonaws.com`
-- [ ] Two API keys ready: `ak_test1234567890123456789012345678` (Key A) + `ak_demo1234567890123456789012345678` (Key B)
+- [ ] **API Keys:**
+  - **Key A:** `ak_demo20241112tenantA1234567890123` (Tenant: `tenant_demo_video_key_a_2024_11_12`)
+  - **Key B:** `ak_demo20241112tenantB1234567890123` (Tenant: `tenant_demo_video_key_b_2024_11_12`)
 - [ ] Authorize with API Key A in Swagger UI before starting (click "Authorize" button at top)
 - [ ] Payloads ready: small event, large event (>400KB), event with explicit `id`
 - [ ] CloudWatch dashboard open
@@ -59,7 +61,7 @@
 
 > "Let's send our first event."
 
-**[Click "Authorize" at top, enter API key: `ak_test1234567890123456789012345678`]**
+**[Click "Authorize" at top, enter API key: `ak_demo20241112tenantA1234567890123`]**
 
 **[Click "Try it out", paste payload]**
 ```json

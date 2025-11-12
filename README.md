@@ -203,6 +203,27 @@ curl -H "X-API-Key: ak_your_api_key_here" ...
 
 API keys are in the format `ak_{32 random characters}`.
 
+#### Generating API Keys
+
+For the MVP, API keys are created using the admin script:
+
+```bash
+# Create a new API key (replace with your desired key and tenant ID)
+python scripts/setup-test-api-key.py \
+  --api-key ak_your_custom_key_here \
+  --tenant-id tenant_your_tenant_id \
+  --table-name zapier-triggers-api-keys-dev-mlx \
+  --region us-east-1
+```
+
+**Important:** 
+- Generate a secure 32-character random string for the key suffix
+- The full key format is `ak_{32chars}` (35 characters total)
+- Store the plaintext key securely - it's only shown once during creation
+- The key is hashed (SHA-256) before storage in DynamoDB
+
+See `scripts/README.md` for more details on the API key setup script.
+
 ### Endpoints
 
 #### POST /events

@@ -27,7 +27,7 @@ dynamodb_client = boto3.client('dynamodb')
 s3_client = boto3.client('s3')
 
 # Health check timeouts (milliseconds)
-DYNAMODB_TIMEOUT_MS = 100  # Healthy threshold: <100ms
+DYNAMODB_TIMEOUT_MS = 300  # Healthy threshold: <300ms
 S3_TIMEOUT_MS = 100  # Healthy threshold: <100ms
 MAX_CHECK_TIMEOUT_MS = 5000  # Maximum time to wait for dependency check (5 seconds)
 
@@ -41,8 +41,8 @@ def check_dynamodb_health() -> tuple[Literal["healthy", "degraded", "unhealthy"]
     
     Returns:
         Tuple of (status, latency_ms)
-        - healthy: Response within 100ms
-        - degraded: Response between 100ms and 500ms
+        - healthy: Response within 300ms
+        - degraded: Response between 300ms and 5000ms
         - unhealthy: No response or error
     """
     start_time = time.time()

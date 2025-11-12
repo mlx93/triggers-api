@@ -102,27 +102,60 @@
     }
     
     /* Make the actual live server response stand out */
-    .swagger-ui .live-responses-table {
+    .swagger-ui .responses-wrapper .live-responses-table {
       margin-top: 20px;
+      margin-bottom: 40px;
       border: 3px solid #49cc90;
       border-radius: 6px;
       padding: 20px;
       background: #f9fff9;
       position: relative;
+      clear: both;
+      display: block;
+      width: 100%;
     }
     
     /* Add "LIVE RESPONSE" label before live response */
-    .swagger-ui .live-responses-table::before {
-      content: "✓ LIVE RESPONSE";
+    .swagger-ui .responses-wrapper .live-responses-table::before {
+      content: "✓ LIVE RESPONSE FROM SERVER";
       display: block;
       background: #49cc90;
       color: white;
       font-weight: 700;
-      font-size: 12px;
-      padding: 8px 15px;
+      font-size: 14px;
+      padding: 10px 15px;
       border-radius: 4px 4px 0 0;
-      margin: -20px -20px 15px -20px;
+      margin: -20px -20px 20px -20px;
       letter-spacing: 1px;
+      text-align: center;
+    }
+    
+    /* Fix the Code/Details tabs layout */
+    .swagger-ui .live-responses-table .responses-table {
+      display: block;
+      width: 100%;
+    }
+    
+    .swagger-ui .live-responses-table thead {
+      display: none; /* Hide the Code/Details header row */
+    }
+    
+    .swagger-ui .live-responses-table tbody {
+      display: block;
+      width: 100%;
+    }
+    
+    .swagger-ui .live-responses-table tr {
+      display: block;
+      width: 100%;
+      margin-bottom: 15px;
+    }
+    
+    .swagger-ui .live-responses-table td {
+      display: block;
+      width: 100%;
+      padding: 0;
+      border: none;
     }
     
     /* Make response code more prominent in live response */
@@ -135,16 +168,27 @@
       border-radius: 4px;
       border-left: 4px solid #49cc90;
       margin-bottom: 15px;
+      display: block;
+      width: 100%;
     }
     
     /* Style the actual response body in live response */
     .swagger-ui .live-responses-table .response-col_description {
-      background: #fafafa;
+      background: #ffffff;
       padding: 20px;
       border-radius: 6px;
       border: 1px solid #e0e0e0;
       margin-top: 15px;
       display: block !important;
+      width: 100%;
+    }
+    
+    /* Response body heading */
+    .swagger-ui .live-responses-table .response-col_description h5 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #3b4151;
+      margin-bottom: 10px;
     }
     
     /* Make response body code block more readable */
@@ -157,35 +201,66 @@
       font-size: 13px;
       line-height: 1.6;
       margin: 0;
+      width: 100%;
+    }
+    
+    /* Response headers section */
+    .swagger-ui .live-responses-table .response-col_headers {
+      display: block;
+      width: 100%;
+      margin-top: 15px;
+    }
+    
+    .swagger-ui .live-responses-table .response-col_headers h5 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #3b4151;
+      margin-bottom: 10px;
     }
     
     /* Clear black border separator between live response and example responses */
-    .swagger-ui .live-responses-table {
-      border-bottom: 4px solid #000000;
-      margin-bottom: 30px;
+    .swagger-ui .responses-wrapper .live-responses-table {
+      border-bottom: 5px solid #000000;
+      padding-bottom: 30px;
     }
     
-    /* Show example responses but make them less prominent */
-    .swagger-ui .responses-inner .response:not(.live-response) {
-      opacity: 0.7;
-      background: #f5f5f5;
-      padding: 15px;
-      border-radius: 4px;
-      margin-top: 20px;
+    /* Create clear separation for RESPONSES section (example responses) */
+    .swagger-ui .responses-wrapper > .responses-inner {
+      margin-top: 40px;
+      padding-top: 30px;
+      clear: both;
     }
     
-    /* Add "EXAMPLE RESPONSES" label before example responses */
-    .swagger-ui .responses-inner .response:not(.live-response):first-of-type::before {
-      content: "EXAMPLE RESPONSES (from OpenAPI spec)";
-      display: block;
+    /* Style the RESPONSES heading */
+    .swagger-ui .responses-wrapper > .responses-inner > h4 {
       background: #666;
       color: white;
       font-weight: 700;
-      font-size: 12px;
-      padding: 8px 15px;
+      font-size: 14px;
+      padding: 10px 15px;
       border-radius: 4px;
-      margin: -15px -15px 15px -15px;
+      margin: 0 0 20px 0 !important;
       letter-spacing: 1px;
+      text-align: center;
+    }
+    
+    .swagger-ui .responses-wrapper > .responses-inner > h4::before {
+      content: "EXAMPLE RESPONSES (from OpenAPI spec) - ";
+    }
+    
+    /* Show example responses but make them clearly separate */
+    .swagger-ui .responses-inner .response {
+      opacity: 0.85;
+      background: #f5f5f5;
+      padding: 20px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      border: 1px solid #ddd;
+    }
+    
+    /* Make response tabs clearer */
+    .swagger-ui .response .response-control-media-type__accept-message {
+      margin-bottom: 10px;
     }
     
     /* Make request URL section less prominent */
