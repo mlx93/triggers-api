@@ -383,7 +383,7 @@ def query_events(
     # Filter: exclude events with active leases
     # Note: We'll filter client-side for lease exclusion to avoid issues with attribute_not_exists
     # For now, we'll query all and filter in Python
-    expression_values[':now'] = now.isoformat()
+    # (No need to add :now to expression_values since we filter client-side)
     
     # Filter: event_type
     if filters and filters.get('event_type'):

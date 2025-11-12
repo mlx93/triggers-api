@@ -18,16 +18,13 @@ Globals:
     MemorySize: 256
     Environment:
       Variables:
-        EVENTS_TABLE: !Sub 'zapier-triggers-events-${Environment}'
-        API_KEYS_TABLE: !Sub 'zapier-triggers-api-keys-${Environment}'
+        EVENTS_TABLE: !Sub 'zapier-triggers-events-${Environment}-mlx'
+        API_KEYS_TABLE: !Sub 'zapier-triggers-api-keys-${Environment}-mlx'
         EVENTS_BUCKET: !Ref EventsBucket
         ENVIRONMENT: !Ref Environment
         LOG_LEVEL: INFO
         LEASE_DURATION_MINUTES: '5'
         SIZE_THRESHOLD_BYTES: '400000'
-    LoggingConfig:
-      LogGroup:
-        RetentionInDays: 30
 
 Resources:
   # API Gateway HTTP API
@@ -52,9 +49,9 @@ Resources:
   IngestFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'zapier-triggers-ingest-${Environment}'
-      CodeUri: src/handlers/
-      Handler: ingest.lambda_handler
+      FunctionName: !Sub 'zapier-triggers-ingest-${Environment}-mlx'
+      CodeUri: .
+      Handler: src.handlers.ingest.lambda_handler
       Events:
         PostEvents:
           Type: HttpApi
@@ -81,9 +78,9 @@ Resources:
   InboxFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'zapier-triggers-inbox-${Environment}'
-      CodeUri: src/handlers/
-      Handler: inbox.lambda_handler
+      FunctionName: !Sub 'zapier-triggers-inbox-${Environment}-mlx'
+      CodeUri: .
+      Handler: src.handlers.inbox.lambda_handler
       Events:
         GetInbox:
           Type: HttpApi
@@ -112,9 +109,9 @@ Resources:
   AckFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'zapier-triggers-ack-${Environment}'
-      CodeUri: src/handlers/
-      Handler: ack.lambda_handler
+      FunctionName: !Sub 'zapier-triggers-ack-${Environment}-mlx'
+      CodeUri: .
+      Handler: src.handlers.ack.lambda_handler
       Events:
         PostInboxAck:
           Type: HttpApi
@@ -139,9 +136,9 @@ Resources:
   HealthFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: !Sub 'zapier-triggers-health-${Environment}'
-      CodeUri: src/handlers/
-      Handler: health.lambda_handler
+      FunctionName: !Sub 'zapier-triggers-health-${Environment}-mlx'
+      CodeUri: .
+      Handler: src.handlers.health.lambda_handler
       Events:
         GetHealth:
           Type: HttpApi
@@ -167,7 +164,7 @@ Resources:
   EventsTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub 'zapier-triggers-events-${Environment}'
+      TableName: !Sub 'zapier-triggers-events-${Environment}-mlx'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: pk
@@ -194,7 +191,7 @@ Resources:
   ApiKeysTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub 'zapier-triggers-api-keys-${Environment}'
+      TableName: !Sub 'zapier-triggers-api-keys-${Environment}-mlx'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: hashed_key
@@ -209,11 +206,36 @@ Resources:
         SSEType: KMS
         KMSMasterKeyId: alias/aws/dynamodb
 
+  # CloudWatch Log Groups
+  IngestFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/zapier-triggers-ingest-${Environment}-mlx'
+      RetentionInDays: 30
+
+  InboxFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/zapier-triggers-inbox-${Environment}-mlx'
+      RetentionInDays: 30
+
+  AckFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/zapier-triggers-ack-${Environment}-mlx'
+      RetentionInDays: 30
+
+  HealthFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/zapier-triggers-health-${Environment}-mlx'
+      RetentionInDays: 30
+
   # S3 Bucket
   EventsBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub 'zapier-triggers-events-${Environment}-${AWS::AccountId}'
+      BucketName: !Sub 'zapier-triggers-events-${Environment}-mlx-${AWS::AccountId}'
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
