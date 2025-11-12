@@ -84,11 +84,13 @@ jobs:
       - name: SAM Deploy
         run: |
           sam deploy \
-            --stack-name zapier-triggers-api-dev \
+            --stack-name zapier-triggers-api-dev-mlx \
             --parameter-overrides Environment=dev \
             --capabilities CAPABILITY_IAM \
             --no-confirm-changeset \
-            --no-fail-on-empty-changeset
+            --no-fail-on-empty-changeset \
+            --region us-east-1 \
+            --resolve-s3
 
   deploy-prod:
     name: Deploy to Production
@@ -119,9 +121,11 @@ jobs:
       - name: SAM Deploy
         run: |
           sam deploy \
-            --stack-name zapier-triggers-api-prod \
+            --stack-name zapier-triggers-api-prod-mlx \
             --parameter-overrides Environment=prod \
             --capabilities CAPABILITY_IAM \
             --no-confirm-changeset \
-            --no-fail-on-empty-changeset
+            --no-fail-on-empty-changeset \
+            --region us-east-1 \
+            --resolve-s3
 
