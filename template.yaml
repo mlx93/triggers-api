@@ -1,0 +1,258 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Zapier Triggers API MVP - Serverless REST API for event ingestion and delivery
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+    Description: Deployment environment (dev or prod)
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 256
+    Environment:
+      Variables:
+        EVENTS_TABLE: !Sub 'zapier-triggers-events-${Environment}'
+        API_KEYS_TABLE: !Sub 'zapier-triggers-api-keys-${Environment}'
+        EVENTS_BUCKET: !Ref EventsBucket
+        ENVIRONMENT: !Ref Environment
+        LOG_LEVEL: INFO
+        LEASE_DURATION_MINUTES: '5'
+        SIZE_THRESHOLD_BYTES: '400000'
+    LoggingConfig:
+      LogGroup:
+        RetentionInDays: 30
+
+Resources:
+  # API Gateway HTTP API
+  TriggersApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Description: Zapier Triggers API HTTP API Gateway
+      CorsConfiguration:
+        AllowOrigins:
+          - https://petstore.swagger.io
+          - http://localhost:8080
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+          - X-API-Key
+        MaxAge: 300
+
+  # Lambda Functions
+  IngestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'zapier-triggers-ingest-${Environment}'
+      CodeUri: src/handlers/
+      Handler: ingest.lambda_handler
+      Events:
+        PostEvents:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref TriggersApi
+            Path: /events
+            Method: POST
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref EventsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref ApiKeysTable
+        - S3CrudPolicy:
+            BucketName: !Ref EventsBucket
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: '*'
+
+  InboxFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'zapier-triggers-inbox-${Environment}'
+      CodeUri: src/handlers/
+      Handler: inbox.lambda_handler
+      Events:
+        GetInbox:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref TriggersApi
+            Path: /inbox
+            Method: GET
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref EventsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref EventsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref ApiKeysTable
+        - S3ReadPolicy:
+            BucketName: !Ref EventsBucket
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: '*'
+
+  AckFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'zapier-triggers-ack-${Environment}'
+      CodeUri: src/handlers/
+      Handler: ack.lambda_handler
+      Events:
+        PostInboxAck:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref TriggersApi
+            Path: /inbox/ack
+            Method: POST
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref EventsTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref ApiKeysTable
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: '*'
+
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'zapier-triggers-health-${Environment}'
+      CodeUri: src/handlers/
+      Handler: health.lambda_handler
+      Events:
+        GetHealth:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref TriggersApi
+            Path: /health
+            Method: GET
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref EventsTable
+        - S3ReadPolicy:
+            BucketName: !Ref EventsBucket
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: '*'
+
+  # DynamoDB Tables
+  EventsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'zapier-triggers-events-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      StreamSpecification:
+        StreamViewType: KEYS_ONLY
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      SSESpecification:
+        SSEEnabled: true
+        SSEType: KMS
+        KMSMasterKeyId: alias/aws/dynamodb
+
+  ApiKeysTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'zapier-triggers-api-keys-${Environment}'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: hashed_key
+          AttributeType: S
+      KeySchema:
+        - AttributeName: hashed_key
+          KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      SSESpecification:
+        SSEEnabled: true
+        SSEType: KMS
+        KMSMasterKeyId: alias/aws/dynamodb
+
+  # S3 Bucket
+  EventsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub 'zapier-triggers-events-${Environment}-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Suspended
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteAfter30Days
+            Status: Enabled
+            ExpirationInDays: 30
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub 'https://${TriggersApi}.execute-api.${AWS::Region}.amazonaws.com/'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiUrl'
+
+  EventsTableName:
+    Description: DynamoDB Events Table Name
+    Value: !Ref EventsTable
+    Export:
+      Name: !Sub '${AWS::StackName}-EventsTable'
+
+  ApiKeysTableName:
+    Description: DynamoDB API Keys Table Name
+    Value: !Ref ApiKeysTable
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiKeysTable'
+
+  EventsBucketName:
+    Description: S3 Events Bucket Name
+    Value: !Ref EventsBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-EventsBucket'
+
