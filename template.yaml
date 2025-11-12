@@ -36,6 +36,8 @@ Resources:
         AllowOrigins:
           - https://petstore.swagger.io
           - http://localhost:8080
+          - http://triggers-api-docs-mlx.s3-website-us-east-1.amazonaws.com
+          - https://triggers-api-docs-mlx.s3-website-us-east-1.amazonaws.com
         AllowMethods:
           - GET
           - POST
