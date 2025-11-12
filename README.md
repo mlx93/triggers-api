@@ -348,7 +348,7 @@ TriggersAPI/
 │   ├── integration/       # Integration tests
 │   └── load/              # Load tests (k6)
 ├── docs/
-│   ├── openapi.yaml       # OpenAPI 3.1 specification
+│   ├── openapi.yaml       # OpenAPI 3.0 specification
 │   ├── API.md             # API usage guide
 │   ├── swagger-ui/        # Swagger UI files
 │   ├── cloudwatch-alarms.md
@@ -416,7 +416,7 @@ See `docs/cloudwatch-dashboard.md` for dashboard configuration.
 
 ### OpenAPI Specification
 
-The complete OpenAPI 3.1 specification is available at `docs/openapi.yaml`.
+The complete OpenAPI 3.0 specification is available at `docs/openapi.yaml`.
 
 ### Swagger UI
 

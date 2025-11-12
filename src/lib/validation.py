@@ -40,7 +40,7 @@ def validate_event_type(event_type: str) -> bool:
     Validate event_type format using regex.
     
     Format: namespace.resource.action (minimum 3 segments)
-    Pattern: ^[a-z0-9_]+(\.[a-z0-9_]+){2,}$
+    Pattern: namespace.resource.action (dot-separated, min 3 segments)
     Length: 3-100 characters
     
     Args:

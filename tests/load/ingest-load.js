@@ -45,12 +45,12 @@ function generateEventId() {
 
 function generateEventType() {
   const types = [
-    'user.created',
-    'user.updated',
-    'order.completed',
-    'order.cancelled',
-    'payment.processed',
-    'notification.sent'
+    'user.account.created',
+    'user.account.updated',
+    'order.payment.completed',
+    'order.payment.cancelled',
+    'payment.transaction.processed',
+    'notification.message.sent'
   ];
   return types[Math.floor(Math.random() * types.length)];
 }

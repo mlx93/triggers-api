@@ -1,4 +1,4 @@
-openapi: 3.1.0
+openapi: 3.0.0
 info:
   title: Zapier Triggers API
   version: 1.0.0
@@ -76,7 +76,7 @@ paths:
               minimal:
                 summary: Minimal event (ID auto-generated)
                 value:
-                  event_type: "user.created"
+                  event_type: "user.account.created"
                   timestamp: "2025-11-11T15:30:45Z"
                   data:
                     user_id: "12345"
@@ -84,8 +84,8 @@ paths:
               with_id:
                 summary: Event with explicit ID
                 value:
-                  id: "evt_abc123xyz789"
-                  event_type: "order.completed"
+                  id: "evt_FB4oaM5CfR6GLbw_9GN_jKYohEIOhlMZ"
+                  event_type: "order.payment.completed"
                   timestamp: "2025-11-11T15:30:45Z"
                   data:
                     order_id: "ord_123"
@@ -116,7 +116,7 @@ paths:
                 success:
                   summary: Success response
                   value:
-                    id: "evt_abc123xyz789"
+                    id: "evt_FB4oaM5CfR6GLbw_9GN_jKYohEIOhlMZ"
                     status: "accepted"
                     created_at: "2025-11-11T15:30:45.123Z"
         '400':
@@ -206,7 +206,7 @@ paths:
                       code: "CONFLICT"
                       message: "Event with this ID already exists"
                       details:
-                        event_id: "evt_abc123xyz789"
+                        event_id: "evt_FB4oaM5CfR6GLbw_9GN_jKYohEIOhlMZ"
                         detail: "Event with this ID was already ingested. Use a different ID or omit to auto-generate."
         '413':
           description: Payload too large - Request body exceeds 10MB limit
@@ -346,16 +346,16 @@ paths:
                   summary: Response with events
                   value:
                     events:
-                      - id: "evt_abc123"
-                        event_type: "user.created"
+                      - id: "evt_FB4oaM5CfR6GLbw_9GN_jKYohEIOhlMZ"
+                        event_type: "user.account.created"
                         timestamp: "2025-11-11T15:30:45Z"
                         data:
                           user_id: "12345"
                           email: "user@example.com"
                         created_at: "2025-11-11T15:30:45.123Z"
                         attempt_count: 1
-                      - id: "evt_def456"
-                        event_type: "order.completed"
+                      - id: "evt_y3_bcW2jBm37FDJoJnLDBka7VaHSCUZu"
+                        event_type: "order.payment.completed"
                         timestamp: "2025-11-11T15:31:00Z"
                         data:
                           order_id: "ord_123"
@@ -363,7 +363,7 @@ paths:
                         created_at: "2025-11-11T15:31:00.456Z"
                         attempt_count: 0
                     pagination:
-                      next_cursor: "1699712345_evt_def456"
+                      next_cursor: "1699712345_evt_y3_bcW2jBm37FDJoJnLDBka7VaHSCUZu"
                       has_more: true
                 empty_inbox:
                   summary: Empty inbox
@@ -376,8 +376,8 @@ paths:
                   summary: Last page of results
                   value:
                     events:
-                      - id: "evt_xyz789"
-                        event_type: "user.updated"
+                      - id: "evt_IuyVlDD6OxL5nhZkf8wKeVmNnJg9pWPq"
+                        event_type: "user.account.updated"
                         timestamp: "2025-11-11T15:32:00Z"
                         data:
                           user_id: "12345"
@@ -473,20 +473,20 @@ paths:
               single_event:
                 summary: Acknowledge single event
                 value:
-                  event_ids: ["evt_abc123"]
+                  event_ids: ["evt_FB4oaM5CfR6GLbw_9GN_jKYohEIOhlMZ"]
               batch_events:
                 summary: Acknowledge multiple events
                 value:
                   event_ids:
-                    - "evt_abc123"
-                    - "evt_def456"
-                    - "evt_xyz789"
+                    - "evt_FB4oaM5CfR6GLbw_9GN_jKYohEIOhlMZ"
+                    - "evt_y3_bcW2jBm37FDJoJnLDBka7VaHSCUZu"
+                    - "evt_IuyVlDD6OxL5nhZkf8wKeVmNnJg9pWPq"
               max_batch:
                 summary: Maximum batch size (100 events)
                 value:
                   event_ids:
-                    - "evt_1"
-                    - "evt_2"
+                    - "evt_FB4oaM5CfR6GLbw_9GN_jKYohEIOhlMZ"
+                    - "evt_y3_bcW2jBm37FDJoJnLDBka7VaHSCUZu"
                     # ... (up to 100 events)
       responses:
         '200':
@@ -500,22 +500,22 @@ paths:
                   summary: All events acknowledged successfully
                   value:
                     acknowledged:
-                      - "evt_abc123"
-                      - "evt_def456"
+                      - "evt_FB4oaM5CfR6GLbw_9GN_jKYohEIOhlMZ"
+                      - "evt_y3_bcW2jBm37FDJoJnLDBka7VaHSCUZu"
                     failed: []
                 partial_success:
                   summary: Partial success with failures
                   value:
                     acknowledged:
-                      - "evt_abc123"
+                      - "evt_FB4oaM5CfR6GLbw_9GN_jKYohEIOhlMZ"
                     failed:
-                      - event_id: "evt_def456"
+                      - event_id: "evt_y3_bcW2jBm37FDJoJnLDBka7VaHSCUZu"
                         error: "event not found or already acknowledged"
                 idempotent:
                   summary: Idempotent acknowledgment (already acknowledged)
                   value:
                     acknowledged:
-                      - "evt_abc123"
+                      - "evt_FB4oaM5CfR6GLbw_9GN_jKYohEIOhlMZ"
                     failed: []
         '400':
           description: Validation error - Invalid request payload
@@ -666,14 +666,14 @@ components:
           type: string
           description: Event identifier (optional, auto-generated if missing)
           pattern: '^evt_[A-Za-z0-9_-]{32}$'
-          example: "evt_abc123xyz789"
+          example: "evt_FB4oaM5CfR6GLbw_9GN_jKYohEIOhlMZ"
         event_type:
           type: string
           description: Event type in dot-notation format (e.g., resource.action.status)
           pattern: '^[a-z0-9_]+(\.[a-z0-9_]+){2,}$'
           minLength: 3
           maxLength: 100
-          example: "user.created"
+          example: "user.account.created"
         timestamp:
           type: string
           format: date-time
@@ -687,7 +687,7 @@ components:
             user_id: "12345"
             email: "user@example.com"
       example:
-        event_type: "user.created"
+        event_type: "user.account.created"
         timestamp: "2025-11-11T15:30:45Z"
         data:
           user_id: "12345"
@@ -703,7 +703,7 @@ components:
         id:
           type: string
           description: Event identifier
-          example: "evt_abc123xyz789"
+          example: "evt_FB4oaM5CfR6GLbw_9GN_jKYohEIOhlMZ"
         status:
           type: string
           enum: [accepted]
@@ -728,11 +728,11 @@ components:
         id:
           type: string
           description: Event identifier
-          example: "evt_abc123"
+          example: "evt_FB4oaM5CfR6GLbw_9GN_jKYohEIOhlMZ"
         event_type:
           type: string
           description: Event type in dot-notation
-          example: "user.created"
+          example: "user.account.created"
         timestamp:
           type: string
           format: date-time
@@ -765,7 +765,7 @@ components:
           type: string
           nullable: true
           description: Cursor for next page of results (null if no more pages)
-          example: "1699712345_evt_abc123"
+          example: "1699712345_evt_FB4oaM5CfR6GLbw_9GN_jKYohEIOhlMZ"
         has_more:
           type: boolean
           description: Whether more events are available
@@ -782,6 +782,7 @@ components:
           items:
             $ref: '#/components/schemas/InboxEvent'
           description: List of events
+          example: []
         pagination:
           $ref: '#/components/schemas/PaginationInfo'
 
@@ -798,7 +799,7 @@ components:
           minItems: 1
           maxItems: 100
           description: Array of event IDs to acknowledge
-          example: ["evt_abc123", "evt_def456"]
+          example: ["evt_FB4oaM5CfR6GLbw_9GN_jKYohEIOhlMZ", "evt_y3_bcW2jBm37FDJoJnLDBka7VaHSCUZu"]
 
     AckFailure:
       type: object
@@ -809,7 +810,7 @@ components:
         event_id:
           type: string
           description: Event identifier that failed
-          example: "evt_xyz789"
+          example: "evt_IuyVlDD6OxL5nhZkf8wKeVmNnJg9pWPq"
         error:
           type: string
           description: Error message describing the failure
@@ -825,13 +826,15 @@ components:
           type: array
           items:
             type: string
+            pattern: '^evt_[A-Za-z0-9_-]{32}$'
           description: Array of successfully acknowledged event IDs
-          example: ["evt_abc123", "evt_def456"]
+          example: ["evt_FB4oaM5CfR6GLbw_9GN_jKYohEIOhlMZ"]
         failed:
           type: array
           items:
             $ref: '#/components/schemas/AckFailure'
           description: Array of failed acknowledgments
+          minItems: 0
           example: []
 
     HealthDependencies:
