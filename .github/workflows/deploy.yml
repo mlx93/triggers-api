@@ -51,6 +51,8 @@ jobs:
           use-installer: true
 
       - name: Validate SAM template
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
         run: sam validate
 
   deploy-dev:
