@@ -28,7 +28,7 @@ s3_client = boto3.client('s3')
 
 # Health check timeouts (milliseconds)
 DYNAMODB_TIMEOUT_MS = 300  # Healthy threshold: <300ms
-S3_TIMEOUT_MS = 100  # Healthy threshold: <100ms
+S3_TIMEOUT_MS = 300  # Healthy threshold: <300ms
 MAX_CHECK_TIMEOUT_MS = 5000  # Maximum time to wait for dependency check (5 seconds)
 
 
