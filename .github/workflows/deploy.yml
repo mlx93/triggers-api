@@ -81,6 +81,19 @@ jobs:
       - name: SAM Build
         run: sam build
 
+      - name: Clean up obsolete changesets
+        run: |
+          # Delete any obsolete or pending changesets
+          aws cloudformation list-change-sets \
+            --stack-name zapier-triggers-api-dev-mlx \
+            --region us-east-1 \
+            --query 'Summaries[?Status==`CREATE_PENDING` || Status==`OBSOLETE`].ChangeSetId' \
+            --output text | \
+          xargs -I {} aws cloudformation delete-change-set \
+            --change-set-name {} \
+            --stack-name zapier-triggers-api-dev-mlx \
+            --region us-east-1 || true
+
       - name: SAM Deploy
         run: |
           sam deploy \
@@ -117,6 +130,19 @@ jobs:
 
       - name: SAM Build
         run: sam build
+
+      - name: Clean up obsolete changesets
+        run: |
+          # Delete any obsolete or pending changesets
+          aws cloudformation list-change-sets \
+            --stack-name zapier-triggers-api-prod-mlx \
+            --region us-east-1 \
+            --query 'Summaries[?Status==`CREATE_PENDING` || Status==`OBSOLETE`].ChangeSetId' \
+            --output text | \
+          xargs -I {} aws cloudformation delete-change-set \
+            --change-set-name {} \
+            --stack-name zapier-triggers-api-prod-mlx \
+            --region us-east-1 || true
 
       - name: SAM Deploy
         run: |
