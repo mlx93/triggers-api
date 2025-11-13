@@ -91,8 +91,8 @@ def check_s3_health() -> tuple[Literal["healthy", "degraded", "unhealthy"], floa
     
     Returns:
         Tuple of (status, latency_ms)
-        - healthy: Response within 100ms
-        - degraded: Response between 100ms and 500ms
+        - healthy: Response within 300ms
+        - degraded: Response between 300ms and 5000ms
         - unhealthy: No response or error
     """
     start_time = time.time()
